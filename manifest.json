@@ -1,0 +1,43 @@
+{
+  "manifest_version": 3,
+  "name": "Horizon: Your Social Media Diet",
+  "version": "0.0.1",
+  "description": "Personal and private social media consumption analytics",
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": [
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.reddit.com/*",
+    "*://*.instagram.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.twitter.com/*",
+        "*://*.x.com/*",
+        "*://*.reddit.com/*",
+        "*://*.instagram.com/*"
+      ],
+      "js": ["content_script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+  "service_worker": "background.js",
+  "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; script-src-elem 'self'; connect-src 'self' blob: data:; object-src 'self'"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Horizon"
+  },
+  "icons": {
+    "16": "HorizonIcon16.png",
+    "32": "HorizonIcon32.png",
+    "64": "HorizonIcon64.png",
+    "128": "HorizonIcon128.png"
+  },
+  "options_page": "options.html"
+}

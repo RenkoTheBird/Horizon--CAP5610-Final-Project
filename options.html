@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Horizon Options</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body { 
+        width: 600px; 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        padding: 24px;
+        background: #f7fafc;
+        color: #2d3748;
+      }
+      h1 { 
+        font-size: 28px; 
+        font-weight: 700;
+        margin: 0 0 24px 0;
+        color: #1a202c;
+      }
+      h2 {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 16px 0;
+        color: #2d3748;
+      }
+      section { 
+        background: #ffffff; 
+        padding: 20px; 
+        border-radius: 12px; 
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        border: 1px solid #e2e8f0;
+      }
+      p {
+        font-size: 15px;
+        color: #4a5568;
+        margin: 0 0 16px 0;
+        line-height: 1.6;
+      }
+      label { 
+        display: flex; 
+        align-items: center; 
+        margin: 12px 0;
+        font-size: 16px;
+        color: #2d3748;
+        cursor: pointer;
+      }
+      label:hover {
+        color: #1a202c;
+      }
+      input[type="checkbox"] { 
+        margin-right: 12px; 
+        width: 20px;
+        height: 20px;
+        cursor: pointer;
+        accent-color: #2b6cb0;
+      }
+      button { 
+        margin-top: 12px;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        background: #2b6cb0;
+        color: white;
+        box-shadow: 0 2px 4px rgba(43, 108, 176, 0.2);
+      }
+      button:hover:not(:disabled) {
+        background: #2c5282;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(43, 108, 176, 0.3);
+      }
+      button:active:not(:disabled) {
+        transform: translateY(0);
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      #clearBtn {
+        background: #e53e3e;
+        box-shadow: 0 2px 4px rgba(229, 62, 62, 0.2);
+      }
+      #clearBtn:hover:not(:disabled) {
+        background: #c53030;
+        box-shadow: 0 4px 8px rgba(229, 62, 62, 0.3);
+      }
+      #trainBtn {
+        background: #38a169;
+        box-shadow: 0 2px 4px rgba(56, 161, 105, 0.2);
+      }
+      #trainBtn:hover:not(:disabled) {
+        background: #2f855a;
+        box-shadow: 0 4px 8px rgba(56, 161, 105, 0.3);
+      }
+      #exportData, #trainStatus { 
+        font-size: 14px; 
+        margin-top: 12px; 
+        color: #4a5568;
+        line-height: 1.6;
+        padding: 12px;
+        background: #f7fafc;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+      }
+      #trainStatus {
+        min-height: 60px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Horizon Settings</h1>
+
+    <section>
+      <h2>Tracking</h2>
+      <label><input type="checkbox" id="enableTracking"> Enable tracking</label>
+      <label><input type="checkbox" id="includeTitles"> Include page titles/snippets</label>
+    </section>
+
+    <section>
+      <h2>Data Management</h2>
+      <button id="exportBtn">Export Data</button>
+      <div id="exportData"></div>
+      <button id="clearBtn" style="background:#e53e3e;">Clear All Data</button>
+    </section>
+
+    <section>
+      <h2>ML & Classification</h2>
+      <p>You can enable an on-device topic classifier (runs locally using a lightweight Naive Bayes classifier - no external dependencies).</p>
+      <label><input type="checkbox" id="enableML"> Enable on-device topic classification</label>
+      <button id="trainBtn">Train Local Model</button>
+      <div id="trainStatus"></div>
+    </section>
+    <!-- Load options.js as module -->
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

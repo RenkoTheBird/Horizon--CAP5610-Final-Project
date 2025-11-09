@@ -1,0 +1,59 @@
+<!-- popup.html -->
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Horizon — Dashboard</title>
+    <link rel="stylesheet" href="popup.css" />
+    <!-- Chart.js (bundled locally) -->
+    <script src="chart.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Horizon</h1>
+        <div id="summarySmall" class="summarySmall"></div>
+      </header>
+
+      <section id="topListSection">
+        <h2>Top domains (today)</h2>
+        <ul id="topDomains"></ul>
+      </section>
+
+      <section class="charts">
+        <div class="chartCard">
+          <h3>Time by Content Type</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="contentPie"></canvas>
+          </div>
+        </div>
+        <div class="chartCard">
+          <h3>Topic Classifications</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="topicChart"></canvas>
+          </div>
+        </div>
+        <div class="chartCard">
+          <h3>Posts per Topic</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="topicCountBar"></canvas>
+          </div>
+        </div>
+        <div class="chartCard">
+          <h3>Top Domains</h3>
+          <div style="position: relative; height: 250px;">
+            <canvas id="domainsBar"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div id="metrics"></div>
+        <button id="refreshBtn">Refresh</button>
+      </footer>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
