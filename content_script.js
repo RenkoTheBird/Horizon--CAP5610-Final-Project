@@ -253,6 +253,9 @@
           }
           // Other errors (service worker may be asleep) - ignore
         }
+        if (response?.success && response.embeddingHash) {
+          console.log('[Horizon] Embedding cached with hash:', response.embeddingHash);
+        }
       });
     } catch (error) {
       // Catch any runtime errors (e.g., extension context invalidated)

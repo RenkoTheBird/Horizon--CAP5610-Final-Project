@@ -1,7 +1,27 @@
 // background.js  — now safe for MV3 service worker
 import { SimpleClassifier } from './simple-classifier.js';
+import { pipeline, env } from './libs/transformers/transformers.min.js';
 
 let classifierCache = null;
+let embeddingPipelinePromise = null;
+let embeddingCacheLoaded = false;
+const embeddingCache = new Map();
+const embeddingCacheOrder = [];
+
+const EMBEDDING_CACHE_KEY = 'embedding_cache_v1';
+const MAX_EMBEDDING_CACHE_ENTRIES = 20;
+const LOCAL_MODEL_ROOT = chrome.runtime.getURL('libs/models');
+const LOCAL_MODEL_PATH = chrome.runtime.getURL('libs/models/all-MiniLM-L6-v2');
+const LOCAL_WASM_PATH = chrome.runtime.getURL('libs/onnxruntime/');
+
+// Configure transformers.js to operate fully offline with local assets
+env.allowRemoteModels = false;
+env.allowLocalModels = true;
+env.useBrowserCache = false;
+env.localModelPath = LOCAL_MODEL_ROOT;
+env.backends.onnx.wasm.wasmPaths = LOCAL_WASM_PATH;
+env.backends.onnx.wasm.numThreads = 1;
+env.backends.onnx.wasm.simd = true;
 
 async function loadClassifier() {
   if (!classifierCache) {
@@ -38,6 +58,115 @@ async function classifyText(text) {
   }
 }
 
+async function loadEmbeddingPipeline() {
+  if (!embeddingPipelinePromise) {
+    embeddingPipelinePromise = pipeline('feature-extraction', LOCAL_MODEL_PATH);
+  }
+  return embeddingPipelinePromise;
+}
+
+async function hashText(text) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(text);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function loadEmbeddingCacheFromStorage() {
+  if (embeddingCacheLoaded) {
+    return;
+  }
+  try {
+    const stored = await chrome.storage.local.get([EMBEDDING_CACHE_KEY]);
+    const entries = stored[EMBEDDING_CACHE_KEY]?.entries;
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.hash && Array.isArray(entry.embedding)) {
+          embeddingCache.set(entry.hash, entry.embedding);
+          embeddingCacheOrder.push(entry.hash);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Horizon] Failed to load embedding cache:', error);
+  } finally {
+    embeddingCacheLoaded = true;
+  }
+}
+
+async function persistEmbeddingCache() {
+  const entries = embeddingCacheOrder.map((hash) => ({
+    hash,
+    embedding: embeddingCache.get(hash)
+  }));
+  try {
+    await chrome.storage.local.set({
+      [EMBEDDING_CACHE_KEY]: {
+        version: 1,
+        entries
+      }
+    });
+  } catch (error) {
+    console.error('[Horizon] Failed to persist embedding cache:', error);
+  }
+}
+
+async function rememberEmbedding(hash, embedding) {
+  embeddingCache.set(hash, embedding);
+  const existingIndex = embeddingCacheOrder.indexOf(hash);
+  if (existingIndex !== -1) {
+    embeddingCacheOrder.splice(existingIndex, 1);
+  }
+  embeddingCacheOrder.push(hash);
+  while (embeddingCacheOrder.length > MAX_EMBEDDING_CACHE_ENTRIES) {
+    const oldest = embeddingCacheOrder.shift();
+    if (oldest) {
+      embeddingCache.delete(oldest);
+    }
+  }
+  await persistEmbeddingCache();
+}
+
+async function getEmbedding(text) {
+  const normalized = typeof text === 'string' ? text.trim() : '';
+  if (!normalized) {
+    return { embedding: null, hash: null };
+  }
+
+  await loadEmbeddingCacheFromStorage();
+  const hash = await hashText(normalized);
+
+  if (embeddingCache.has(hash)) {
+    return { embedding: embeddingCache.get(hash), hash };
+  }
+
+  try {
+    const extractor = await loadEmbeddingPipeline();
+    const result = await extractor(normalized, {
+      pooling: 'mean',
+      normalize: true
+    });
+    const tensorData = Array.isArray(result)
+      ? result
+      : Array.from(result.data ?? []);
+    const embeddingVector = tensorData.map((value) =>
+      Number(Number(value).toFixed(6))
+    );
+
+    if (!embeddingVector.length) {
+      return { embedding: null, hash: null };
+    }
+
+    await rememberEmbedding(hash, embeddingVector);
+    return { embedding: embeddingVector, hash };
+  } catch (error) {
+    console.error('[Horizon] Embedding error:', error);
+    return { embedding: null, hash: null };
+  }
+}
+
 // Store engagement data
 async function storeEngagement(data) {
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -51,7 +180,8 @@ async function storeEngagement(data) {
     byContentType: {},
     byTopic: {},
     byTopicCounts: {},
-    totalMs: 0
+    totalMs: 0,
+    embeddingSamples: []
   };
   
   // Initialize byTopic if not present (for backward compatibility)
@@ -60,6 +190,9 @@ async function storeEngagement(data) {
   }
   if (!existing.byTopicCounts) {
     existing.byTopicCounts = {};
+  }
+  if (!Array.isArray(existing.embeddingSamples)) {
+    existing.embeddingSamples = [];
   }
   
   // Update domain
@@ -78,6 +211,21 @@ async function storeEngagement(data) {
     existing.byTopicCounts[topic] = (existing.byTopicCounts[topic] || 0) + 1;
   }
   
+  if (Array.isArray(data.embedding) && data.embedding.length > 0) {
+    const sample = {
+      domain,
+      contentType,
+      topic: data.topic || null,
+      hash: data.embeddingHash || null,
+      embedding: data.embedding,
+      capturedAt: data.capturedAt
+    };
+    existing.embeddingSamples.push(sample);
+    if (existing.embeddingSamples.length > 50) {
+      existing.embeddingSamples = existing.embeddingSamples.slice(-50);
+    }
+  }
+
   // Update total
   existing.totalMs += data.deltaMs;
   
@@ -99,7 +247,8 @@ async function getTodaySummary() {
     byContentType: {},
     byTopic: {},
     byTopicCounts: {},
-    totalMs: 0
+    totalMs: 0,
+    embeddingSamples: []
   };
   
   // Ensure byTopic exists for backward compatibility
@@ -108,6 +257,9 @@ async function getTodaySummary() {
   }
   if (!summary.byTopicCounts) {
     summary.byTopicCounts = {};
+  }
+  if (!Array.isArray(summary.embeddingSamples)) {
+    summary.embeddingSamples = [];
   }
   
   // Debug logging
@@ -137,6 +289,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       // Try to classify if ML is enabled (optional)
       let topic = null;
+      let embeddingResult = { embedding: null, hash: null };
       try {
         console.log('[Horizon] Settings check:', { enableML: settings.enableML });
         
@@ -148,6 +301,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             const classificationResult = await classifyText(title);
             topic = typeof classificationResult === 'string' ? classificationResult : (classificationResult?.category || classificationResult);
             console.log('[Horizon] Final topic:', topic, 'from result:', classificationResult);
+            embeddingResult = await getEmbedding(title);
           } else {
             console.log('[Horizon] Title too short or empty, skipping classification. Title length:', title.length);
           }
@@ -160,13 +314,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }
       
       // Store the engagement data (with topic if available)
-      await storeEngagement({ ...msg, topic });
+      await storeEngagement({
+        ...msg,
+        topic,
+        embedding: embeddingResult.embedding,
+        embeddingHash: embeddingResult.hash
+      });
       if (topic) {
         console.log('[Horizon] Stored engagement with topic:', topic, 'for', msg.deltaMs, 'ms');
       } else {
         console.log('[Horizon] Stored engagement without topic');
       }
-      sendResponse({ success: true, topic });
+      sendResponse({ success: true, topic, embeddingHash: embeddingResult.hash });
     } else if (msg.type === 'get_today_summary') {
       const summary = await getTodaySummary();
       sendResponse(summary);

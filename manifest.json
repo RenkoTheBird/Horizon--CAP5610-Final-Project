@@ -23,8 +23,8 @@
     }
   ],
   "background": {
-  "service_worker": "background.js",
-  "type": "module"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; script-src-elem 'self'; connect-src 'self' blob: data:; object-src 'self'"
@@ -39,5 +39,15 @@
     "64": "HorizonIcon64.png",
     "128": "HorizonIcon128.png"
   },
-  "options_page": "options.html"
+  "options_page": "options.html",
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "libs/transformers/transformers.min.js",
+        "libs/onnxruntime/*",
+        "libs/models/all-MiniLM-L6-v2/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }
